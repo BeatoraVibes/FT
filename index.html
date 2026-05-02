@@ -142,15 +142,13 @@
 
     // WHEN VIDEO ENDS → SHOW ❌
     video.addEventListener("ended", () => {
-      closeBtn.style.display = "block";
-    });
-
+      
     // CLOSE BUTTON
     closeBtn.onclick = () => {
       video.pause();
       video.currentTime = 0;
       container.style.display = "none";
-      closeBtn.style.display = "none";
+      closeBtn.style.display = "block";
     };
 
     // DELETE FILE
