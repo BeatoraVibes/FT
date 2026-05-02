@@ -2,7 +2,6 @@
 <html>
 <head>
   <title>Media Hub</title>
-
   <style>
     body {
       background: black;
@@ -12,7 +11,7 @@
     }
 
     h1 {
-      font-size: 40px;
+      font-size: 30px;
     }
 
     button {
@@ -25,24 +24,19 @@
       font-size: 16px;
     }
 
-    input {
-      padding: 10px;
-    }
-
     .card {
-      border: 2px solid #00ffcc;
+      border: 2px solid #00ffae;
+      border-radius: 10px;
       padding: 10px;
       margin-top: 20px;
-      width: 300px;
-      border-radius: 10px;
+      width: 320px;
     }
 
-    video {
+    video, img {
       width: 100%;
-      border-radius: 10px;
+      border-radius: 8px;
     }
 
-    /* VIDEO FULL SCREEN PLAYER */
     #videoContainer {
       position: fixed;
       top: 0;
@@ -53,115 +47,119 @@
       display: none;
       justify-content: center;
       align-items: center;
-      z-index: 999;
+      z-index: 1000;
     }
 
     #player {
-      width: 80%;
+      max-width: 90%;
       max-height: 90%;
     }
 
+    /* ❌ ALWAYS VISIBLE */
     #closeBtn {
       position: absolute;
       top: 20px;
       right: 20px;
       background: red;
-      font-size: 20px;
-      display: none;
+      padding: 10px 15px;
+      font-size: 18px;
+      display: block;
+      border-radius: 6px;
     }
   </style>
 </head>
 
 <body>
 
-  <h1>📺 Media Hub</h1>
+<h1>📺 Media Hub</h1>
 
-  <input type="file" id="fileInput">
-  <button onclick="upload()">Upload</button>
+<input type="file" id="fileInput">
+<button onclick="upload()">Upload</button>
 
-  <div id="files"></div>
+<div id="files"></div>
 
-  <!-- VIDEO PLAYER -->
-  <div id="videoContainer">
-    <video id="player" controls></video>
-    <button id="closeBtn">❌</button>
-  </div>
+<!-- VIDEO PLAYER -->
+<div id="videoContainer">
+  <video id="player" controls></video>
+  <button id="closeBtn">❌</button>
+</div>
 
-  <script>
-    const video = document.getElementById("player");
-    const closeBtn = document.getElementById("closeBtn");
-    const container = document.getElementById("videoContainer");
+<script>
+const filesDiv = document.getElementById("files");
+const video = document.getElementById("player");
+const container = document.getElementById("videoContainer");
+const closeBtn = document.getElementById("closeBtn");
 
-    // LOAD FILES
-    async function loadFiles() {
-      const res = await fetch("/files");
-      const files = await res.json();
+// LOAD FILES
+async function loadFiles() {
+  const res = await fetch("/files");
+  const data = await res.json();
 
-      const div = document.getElementById("files");
-      div.innerHTML = "";
+  filesDiv.innerHTML = "";
 
-      files.forEach(file => {
-        div.innerHTML += `
-          <div class="card">
-            <video src="/uploads/${file}"></video>
-            <p>${file}</p>
+  data.forEach(file => {
+    const div = document.createElement("div");
+    div.className = "card";
 
-            <button onclick="playVideo('${file}')">Play</button>
-            <button onclick="deleteFile('${file}')">Delete</button>
-          </div>
-        `;
-      });
+    let content = "";
+
+    if (file.match(/\.(mp4|webm|ogg)$/)) {
+      content = `<video src="/uploads/${file}" onclick="playVideo('${file}')"></video>`;
+    } else if (file.match(/\.(jpg|jpeg|png|gif)$/)) {
+      content = `<img src="/uploads/${file}">`;
+    } else {
+      content = `<p>${file}</p>`;
     }
 
-    // UPLOAD
-    async function upload() {
-      const file = document.getElementById("fileInput").files[0];
-      if (!file) {
-        alert("Select file first");
-        return;
-      }
+    div.innerHTML = `
+      ${content}
+      <p>${file}</p>
+      <button onclick="deleteFile('${file}')">Delete</button>
+    `;
 
-      const formData = new FormData();
-      formData.append("file", file);
+    filesDiv.appendChild(div);
+  });
+}
 
-      await fetch("/upload", {
-        method: "POST",
-        body: formData
-      });
+// PLAY VIDEO
+function playVideo(file) {
+  video.src = "/uploads/" + file;
+  container.style.display = "flex";
+  video.play();
+}
 
-      loadFiles();
-    }
+// CLOSE VIDEO
+closeBtn.onclick = () => {
+  video.pause();
+  video.currentTime = 0;
+  container.style.display = "none";
+};
 
-    // PLAY VIDEO
-    function playVideo(file) {
-      video.src = "/uploads/" + file;
-      container.style.display = "flex";
-      closeBtn.style.display = "none";
-      video.play();
-    }
+// UPLOAD
+async function upload() {
+  const file = document.getElementById("fileInput").files[0];
+  if (!file) return alert("Please select a file");
 
-    // WHEN VIDEO ENDS → SHOW ❌
-    video.addEventListener("ended", () => {
-      
-    // CLOSE BUTTON
-    closeBtn.onclick = () => {
-      video.pause();
-      video.currentTime = 0;
-      container.style.display = "none";
-      closeBtn.style.display = "block";
-    };
+  const formData = new FormData();
+  formData.append("file", file);
 
-    // DELETE FILE
-    async function deleteFile(file) {
-      await fetch("/delete/" + file, {
-        method: "DELETE"
-      });
-      loadFiles();
-    }
+  await fetch("/upload", {
+    method: "POST",
+    body: formData
+  });
 
-    // INITIAL LOAD
-    loadFiles();
-  </script>
+  loadFiles();
+}
+
+// DELETE
+async function deleteFile(name) {
+  await fetch("/delete/" + name, { method: "DELETE" });
+  loadFiles();
+}
+
+// INITIAL LOAD
+loadFiles();
+</script>
 
 </body>
 </html>
