@@ -1,72 +1,72 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Media Hub</title>
-  <style>
-    body {
-      background: black;
-      color: white;
-      font-family: Arial;
-      padding: 20px;
-    }
+<title>Media Hub</title>
 
-    h1 {
-      font-size: 30px;
-    }
+<style>
+body {
+  background:#000;
+  color:white;
+  font-family:Arial;
+  padding:20px;
+}
 
-    button {
-      background: red;
-      color: white;
-      border: none;
-      padding: 10px 15px;
-      cursor: pointer;
-      border-radius: 5px;
-      font-size: 16px;
-    }
+h2 {
+  margin-top:30px;
+}
 
-    .card {
-      border: 2px solid #00ffae;
-      border-radius: 10px;
-      padding: 10px;
-      margin-top: 20px;
-      width: 320px;
-    }
+.row {
+  display:flex;
+  overflow-x:auto;
+  gap:15px;
+}
 
-    video, img {
-      width: 100%;
-      border-radius: 8px;
-    }
+.card {
+  min-width:250px;
+  background:#111;
+  border-radius:10px;
+  padding:10px;
+}
 
-    #videoContainer {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: black;
-      display: none;
-      justify-content: center;
-      align-items: center;
-      z-index: 1000;
-    }
+video, img {
+  width:100%;
+  border-radius:8px;
+}
 
-    #player {
-      max-width: 90%;
-      max-height: 90%;
-    }
+button {
+  margin-top:5px;
+  padding:6px;
+  background:red;
+  border:none;
+  color:white;
+  cursor:pointer;
+}
 
-    /* ❌ ALWAYS VISIBLE */
-    #closeBtn {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      background: red;
-      padding: 10px 15px;
-      font-size: 18px;
-      display: block;
-      border-radius: 6px;
-    }
-  </style>
+/* player */
+#videoContainer {
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  background:black;
+  display:none;
+  justify-content:center;
+  align-items:center;
+}
+
+#player {
+  max-width:90%;
+  max-height:90%;
+}
+
+#closeBtn {
+  position:absolute;
+  top:20px;
+  right:20px;
+  display:block;
+}
+</style>
 </head>
 
 <body>
@@ -76,95 +76,103 @@
 <input type="file" id="fileInput">
 <button onclick="upload()">Upload</button>
 
-<div id="files"></div>
+<div id="content"></div>
 
-<!-- VIDEO PLAYER -->
 <div id="videoContainer">
   <video id="player" controls></video>
   <button id="closeBtn">❌</button>
 </div>
 
 <script>
-const filesDiv = document.getElementById("files");
+const content = document.getElementById("content");
 const video = document.getElementById("player");
 const container = document.getElementById("videoContainer");
-const closeBtn = document.getElementById("closeBtn");
 
-// LOAD FILES
-async function loadFiles() {
-  const res = await fetch("/files");
-  const data = await res.json();
-
-  filesDiv.innerHTML = "";
-
-  data.forEach(file => {
-    const div = document.createElement("div");
-    div.className = "card";
-
-    let content = "";
-
-    if (file.match(/\.(mp4|webm|ogg)$/)) {
-      content = `<video src="/uploads/${file}" onclick="playVideo('${file}')"></video>`;
-    } else if (file.match(/\.(jpg|jpeg|png|gif)$/)) {
-      content = `<img src="/uploads/${file}">`;
-    } else {
-      content = `<p>${file}</p>`;
-    }
-
-    div.innerHTML = `
-      ${content}
-      <p>${file}</p>
-      <button onclick="deleteFile('${file}')">Delete</button>
-    `;
-
-    filesDiv.appendChild(div);
-  });
+function categorize(files) {
+  return {
+    videos: files.filter(f => f.match(/\.(mp4|webm|mkv)$/)),
+    images: files.filter(f => f.match(/\.(jpg|jpeg|png)$/)),
+    apks: files.filter(f => f.endsWith(".apk")),
+    others: files.filter(f => 
+      !f.match(/\.(mp4|webm|mkv|jpg|jpeg|png|apk)$/)
+    )
+  };
 }
 
-// PLAY VIDEO
-function playVideo(file) {
+function createRow(title, files, type) {
+  if (files.length === 0) return "";
+
+  return `
+    <h2>${title}</h2>
+    <div class="row">
+      ${files.map(file => {
+        let preview = "";
+
+        if (type === "video") {
+          preview = `<video src="/uploads/${file}" onclick="play('${file}')"></video>`;
+        } else if (type === "image") {
+          preview = `<img src="/uploads/${file}">`;
+        } else {
+          preview = `<div style="height:150px;display:flex;align-items:center;justify-content:center;">📄</div>`;
+        }
+
+        return `
+          <div class="card">
+            ${preview}
+            <p>${file}</p>
+            <button onclick="deleteFile('${file}')">Delete</button>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+async function loadFiles() {
+  const res = await fetch("/files");
+  const files = await res.json();
+
+  const c = categorize(files);
+
+  content.innerHTML =
+    createRow("🎬 Videos", c.videos, "video") +
+    createRow("🖼️ Images", c.images, "image") +
+    createRow("📱 APK", c.apks, "apk") +
+    createRow("📂 Others", c.others, "other");
+}
+
+function play(file) {
   video.src = "/uploads/" + file;
   container.style.display = "flex";
   video.play();
 }
 
-// CLOSE VIDEO
-closeBtn.onclick = () => {
+document.getElementById("closeBtn").onclick = () => {
   video.pause();
-  video.currentTime = 0;
   container.style.display = "none";
 };
 
-// UPLOAD
 async function upload() {
   const file = document.getElementById("fileInput").files[0];
-  if (!file) return alert("Please select a file");
+  if (!file) return alert("Select file");
 
-  const formData = new FormData();
-  formData.append("file", file);
+  const fd = new FormData();
+  fd.append("file", file);
 
-  await fetch("/upload", {
-    method: "POST",
-    body: formData
-  });
-
+  await fetch("/upload", { method:"POST", body:fd });
   loadFiles();
 }
 
-// DELETE
 async function deleteFile(name) {
   await fetch("/delete", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: "name=" + encodeURIComponent(name)
   });
 
   loadFiles();
 }
-  
-// INITIAL LOAD
+
 loadFiles();
 </script>
 
