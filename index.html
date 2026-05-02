@@ -1,162 +1,169 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>TV Media</title>
+  <title>Media Hub</title>
 
-<style>
-body {
-    background:#000;
-    color:white;
-    font-family:Arial;
-    margin:0;
-    padding:20px;
-}
+  <style>
+    body {
+      background: black;
+      color: white;
+      font-family: Arial;
+      padding: 20px;
+    }
 
-h1 {
-    font-size:28px;
-    margin-bottom:20px;
-}
+    h1 {
+      font-size: 40px;
+    }
 
-.grid {
-    display:grid;
-    grid-template-columns: repeat(3, 1fr); /* ONLY 3 per row */
-    gap:30px;
-}
+    button {
+      background: red;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      cursor: pointer;
+      border-radius: 5px;
+      font-size: 16px;
+    }
 
-.card {
-    background:#111;
-    border-radius:16px;
-    padding:10px;
-    cursor:pointer;
-    outline:none;
-    transition:0.2s;
-}
+    input {
+      padding: 10px;
+    }
 
-.card:focus {
-    transform:scale(1.1);
-    border:3px solid #00ff99;
-}
+    .card {
+      border: 2px solid #00ffcc;
+      padding: 10px;
+      margin-top: 20px;
+      width: 300px;
+      border-radius: 10px;
+    }
 
-.preview {
-    width:100%;
-    height:180px;
-    border-radius:12px;
-    object-fit:cover;
-    background:#222;
-}
+    video {
+      width: 100%;
+      border-radius: 10px;
+    }
 
-.name {
-    margin-top:10px;
-    font-size:18px;
-    word-break:break-word;
-}
+    /* VIDEO FULL SCREEN PLAYER */
+    #videoContainer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: black;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+    }
 
-button {
-    margin-top:8px;
-    padding:8px;
-    font-size:14px;
-    background:red;
-    color:white;
-    border:none;
-    border-radius:6px;
-}
+    #player {
+      width: 80%;
+      max-height: 90%;
+    }
 
-form {
-    margin-top:5px;
-}
-
-.upload {
-    margin-bottom:25px;
-}
-</style>
+    #closeBtn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: red;
+      font-size: 20px;
+      display: none;
+    }
+  </style>
 </head>
 
 <body>
 
-<h1>📺 Media Hub</h1>
+  <h1>📺 Media Hub</h1>
 
-<div class="upload">
-<form action="/upload" method="post" enctype="multipart/form-data">
-    <input type="file" name="file" required>
-    <button>Upload</button>
-</form>
-</div>
+  <input type="file" id="fileInput">
+  <button onclick="upload()">Upload</button>
 
-<div class="grid" id="grid"></div>
+  <div id="files"></div>
 
-<script>
-let cards = [];
-let index = 0;
-let cols = 3;
+  <!-- VIDEO PLAYER -->
+  <div id="videoContainer">
+    <video id="player" controls></video>
+    <button id="closeBtn">❌</button>
+  </div>
 
-async function loadFiles() {
-    const res = await fetch('/files');
-    const files = await res.json();
+  <script>
+    const video = document.getElementById("player");
+    const closeBtn = document.getElementById("closeBtn");
+    const container = document.getElementById("videoContainer");
 
-    const grid = document.getElementById('grid');
-    grid.innerHTML = '';
+    // LOAD FILES
+    async function loadFiles() {
+      const res = await fetch("/files");
+      const files = await res.json();
 
-    files.forEach((file) => {
-        const ext = file.split('.').pop().toLowerCase();
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.tabIndex = 0;
+      const div = document.getElementById("files");
+      div.innerHTML = "";
 
-        let preview = '';
+      files.forEach(file => {
+        div.innerHTML += `
+          <div class="card">
+            <video src="/uploads/${file}"></video>
+            <p>${file}</p>
 
-        if (['mp4','webm','mkv'].includes(ext)) {
-            preview = `<video class="preview" src="/stream/${file}"></video>`;
-            card.onclick = () => playVideo(file);
-        } else if (['jpg','png','jpeg'].includes(ext)) {
-            preview = `<img class="preview" src="/stream/${file}">`;
-        } else {
-            preview = `<div class="preview" style="display:flex;align-items:center;justify-content:center;font-size:40px;">📄</div>`;
-            card.onclick = () => window.location = '/download/' + file;
-        }
-
-        card.innerHTML = `
-            ${preview}
-            <div class="name">${file}</div>
-            <form method="post" action="/delete">
-                <input type="hidden" name="name" value="${file}">
-                <button onclick="return confirm('Delete?')">Delete</button>
-            </form>
+            <button onclick="playVideo('${file}')">Play</button>
+            <button onclick="deleteFile('${file}')">Delete</button>
+          </div>
         `;
+      });
+    }
 
-        grid.appendChild(card);
+    // UPLOAD
+    async function upload() {
+      const file = document.getElementById("fileInput").files[0];
+      if (!file) {
+        alert("Select file first");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      await fetch("/upload", {
+        method: "POST",
+        body: formData
+      });
+
+      loadFiles();
+    }
+
+    // PLAY VIDEO
+    function playVideo(file) {
+      video.src = "/uploads/" + file;
+      container.style.display = "flex";
+      closeBtn.style.display = "none";
+      video.play();
+    }
+
+    // WHEN VIDEO ENDS → SHOW ❌
+    video.addEventListener("ended", () => {
+      closeBtn.style.display = "block";
     });
 
-    cards = document.querySelectorAll('.card');
-    index = 0;
-    cards[index]?.focus();
-}
+    // CLOSE BUTTON
+    closeBtn.onclick = () => {
+      video.pause();
+      video.currentTime = 0;
+      container.style.display = "none";
+      closeBtn.style.display = "none";
+    };
 
-// Video player fullscreen
-function playVideo(file) {
-    document.body.innerHTML = `
-        <video controls autoplay style="width:100%;height:100vh;background:black">
-            <source src="/stream/${file}">
-        </video>
-    `;
-}
+    // DELETE FILE
+    async function deleteFile(file) {
+      await fetch("/delete/" + file, {
+        method: "DELETE"
+      });
+      loadFiles();
+    }
 
-// Remote navigation
-document.addEventListener('keydown', (e) => {
-    if (!cards.length) return;
-
-    if (e.key === 'ArrowRight') index++;
-    if (e.key === 'ArrowLeft') index--;
-    if (e.key === 'ArrowDown') index += cols;
-    if (e.key === 'ArrowUp') index -= cols;
-
-    if (index < 0) index = 0;
-    if (index >= cards.length) index = cards.length - 1;
-
-    cards[index].focus();
-});
-
-loadFiles();
-</script>
+    // INITIAL LOAD
+    loadFiles();
+  </script>
 
 </body>
 </html>
