@@ -6,7 +6,7 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000; // ✅ IMPORTANT CHANGE
 
-app.use(express.static('public'));
+app.use(express.static(__dirname));
 app.use(express.urlencoded({ extended: true }));
 
 // ✅ ensure uploads folder exists
