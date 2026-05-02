@@ -153,10 +153,17 @@ async function upload() {
 
 // DELETE
 async function deleteFile(name) {
-  await fetch("/delete/" + name, { method: "DELETE" });
+  await fetch("/delete", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: "name=" + encodeURIComponent(name)
+  });
+
   loadFiles();
 }
-
+  
 // INITIAL LOAD
 loadFiles();
 </script>
