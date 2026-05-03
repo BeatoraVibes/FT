@@ -102,13 +102,27 @@ app.post("/save", express.json(), (req, res) => {
 /* =========================
    ❌ DELETE FILE
 ========================= */
-app.post("/delete", express.json(), (req, res) => {
-  let files = loadData();
-  files = files.filter(f => f.url !== req.body.url);
-  saveData(files);
+app.post("/delete", express.json(), async (req, res) => {
+  try {
+    const url = req.body.url;
 
-  res.send("Deleted");
+    // Extract public_id from Cloudinary URL
+    const parts = url.split("/");
+    const fileName = parts[parts.length - 1]; // e.g. abc123.mp4
+    const publicId = fileName.split(".")[0];  // remove extension
+
+    await cloudinary.uploader.destroy(publicId, {
+      resource_type: "video"
+    });
+
+    res.send("Deleted from cloud");
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Delete failed");
+  }
 });
+
 /* =========================
    🚀 START SERVER
 ========================= */
