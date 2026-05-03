@@ -73,23 +73,26 @@ app.get("/files", (req, res) => {
 /* =========================
    💾 SAVE FILE
 ========================= */
-app.post("/save", (req, res) => {
+app.post("/save", express.json(), (req, res) => {
+  console.log("SAVE HIT:", req.body); // 👈 debug
+
   const files = loadData();
   files.push(req.body);
   saveData(files);
+
   res.send("Saved");
 });
 
 /* =========================
    ❌ DELETE FILE
 ========================= */
-app.post("/delete", (req, res) => {
+app.post("/delete", express.json(), (req, res) => {
   let files = loadData();
   files = files.filter(f => f.url !== req.body.url);
   saveData(files);
+
   res.send("Deleted");
 });
-
 /* =========================
    🚀 START SERVER
 ========================= */
