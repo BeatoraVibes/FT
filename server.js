@@ -15,6 +15,7 @@ cloudinary.config({
   api_key: "985917868938864",
   api_secret: "vI9k2kSAQ_NL83TSlNrDBBP2YPw"
 });
+app.use(express.static(__dirname));
 
 /* =========================
    📁 MULTER (TEMP STORAGE)
