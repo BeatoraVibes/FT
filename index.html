@@ -1,225 +1,129 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Media Hub</title>
+  <title>Media Hub</title>
 
-<style>
-body {
-  background:#000;
-  color:white;
-  font-family:Arial;
-  padding:15px;
-}
+  <style>
+    body {
+      background: black;
+      color: white;
+      font-family: Arial;
+    }
 
-/* ROW */
-.row-wrapper { position:relative; }
-.row {
-  display:flex;
-  overflow-x:auto;
-  gap:15px;
-  scroll-behavior:smooth;
-}
+    h1 {
+      margin-left: 20px;
+    }
 
-/* CARDS */
-.card {
-  min-width:200px;
-  max-width:200px;
-  background:#111;
-  border-radius:10px;
-  padding:10px;
-}
+    .upload-box {
+      margin: 20px;
+    }
 
-video, img {
-  width:100%;
-  height:120px;
-  object-fit:cover;
-  border-radius:8px;
-}
+    button {
+      background: red;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      cursor: pointer;
+      border-radius: 5px;
+    }
 
-/* ARROWS */
-.arrow {
-  position:absolute;
-  top:40%;
-  background:rgba(255,0,0,0.7);
-  border:none;
-  color:white;
-  font-size:20px;
-  padding:10px;
-  cursor:pointer;
-}
-.left { left:0; }
-.right { right:0; }
+    .row {
+      position: relative;
+      margin: 20px;
+    }
 
-/* FULLSCREEN */
-#viewer {
-  position:fixed;
-  top:0;
-  left:0;
-  width:100%;
-  height:100%;
-  background:black;
-  display:none;
-  justify-content:center;
-  align-items:center;
-  z-index:1000;
-}
+    .row h2 {
+      margin-bottom: 10px;
+    }
 
-#viewer video, #viewer img {
-  width:100%;
-  height:100%;
-  object-fit:contain;
-}
+    .row-content {
+      display: flex;
+      overflow-x: auto;
+      gap: 10px;
+    }
 
-#closeBtn {
-  position:absolute;
-  top:20px;
-  right:20px;
-  background:red;
-  padding:10px;
-  font-size:18px;
-}
+    .card {
+      min-width: 200px;
+      background: #111;
+      padding: 10px;
+      border-radius: 10px;
+    }
 
-/* PROGRESS */
-#progressBox {
-  margin-top:10px;
-  display:none;
-}
+    video, img {
+      width: 100%;
+      border-radius: 8px;
+    }
 
-#progressBar {
-  background:red;
-  height:100%;
-  width:0%;
-  border-radius:10px;
-}
-</style>
+    .arrow {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(0,0,0,0.7);
+      font-size: 20px;
+    }
+
+    .left { left: 0; }
+    .right { right: 0; }
+
+    /* FULLSCREEN VIEW */
+    #viewer {
+      display: none;
+      position: fixed;
+      top:0;
+      left:0;
+      width:100%;
+      height:100%;
+      background:black;
+      justify-content:center;
+      align-items:center;
+      flex-direction:column;
+    }
+
+    #viewer video, #viewer img {
+      max-width:90%;
+      max-height:80%;
+    }
+
+    #closeBtn {
+      position:absolute;
+      top:10px;
+      right:10px;
+      font-size:25px;
+      background:red;
+      padding:5px 10px;
+    }
+  </style>
 </head>
 
 <body>
 
 <h1>📺 Media Hub</h1>
 
-<input type="file" id="fileInput">
-<button onclick="upload()">Upload</button>
+<div class="upload-box">
+  <input type="file" id="fileInput">
+  <button onclick="upload()">Upload</button>
+</div>
 
 <!-- PROGRESS -->
-<div id="progressBox">
-  <div style="background:#333; width:300px; height:20px; border-radius:10px;">
-    <div id="progressBar"></div>
+<div id="progressBox" style="display:none; margin:20px;">
+  <div style="background:#333; height:20px; width:300px;">
+    <div id="progressBar" style="background:red; height:20px; width:0;"></div>
   </div>
-  <p id="progressText">0%</p>
+  <div id="progressText"></div>
 </div>
 
 <div id="content"></div>
 
-<!-- VIEWER -->
+<!-- FULLSCREEN VIEW -->
 <div id="viewer">
-  <video id="player" controls></video>
-  <img id="imageView">
-  <button id="closeBtn">❌</button>
+  <button id="closeBtn" onclick="closeViewer()">❌</button>
+  <video id="viewVideo" controls></video>
+  <img id="viewImage">
 </div>
 
 <script>
-const content = document.getElementById("content");
-const viewer = document.getElementById("viewer");
-const video = document.getElementById("player");
-const img = document.getElementById("imageView");
 
-function scrollRow(id, dir){
-  document.getElementById(id)
-    .scrollBy({ left: dir*200, behavior:"smooth" });
-}
-
-function categorize(files){
-  return {
-    videos: files.filter(f=>f.match(/\.(mp4|webm|mkv)$/i)),
-    images: files.filter(f=>f.match(/\.(jpg|jpeg|png)$/i)),
-    apks: files.filter(f=>f.endsWith(".apk")),
-    others: files.filter(f=>!f.match(/\.(mp4|webm|mkv|jpg|jpeg|png|apk)$/i))
-  };
-}
-
-function createRow(title, files, type, id){
-  if(!files.length) return "";
-
-  return `
-    <h2>${title}</h2>
-    <div class="row-wrapper">
-      <button class="arrow left" onclick="scrollRow('${id}',-1)">◀</button>
-
-      <div class="row" id="${id}">
-        ${files.map(f=>{
-          let preview="";
-          if(type==="video"){
-            preview=`<video src="/uploads/${f}" onclick="openVideo('${f}')"></video>`;
-          } else if(type==="image"){
-            preview=`<img src="/uploads/${f}" onclick="openImage('${f}')">`;
-          } else {
-            preview=`<div style="height:120px;display:flex;align-items:center;justify-content:center;">📄</div>`;
-          }
-
-          return `
-            <div class="card">
-              ${preview}
-              <p>${f}</p>
-              <button onclick="deleteFile('${f}')">Delete</button>
-            </div>
-          `;
-        }).join("")}
-      </div>
-
-      <button class="arrow right" onclick="scrollRow('${id}',1)">▶</button>
-    </div>
-  `;
-}
-
-async function loadFiles(){
-  const res = await fetch("/files");
-  const files = await res.json();
-
-  const c = categorize(files);
-
-  content.innerHTML =
-    createRow("🎬 Videos", c.videos, "video", "vrow") +
-    createRow("🖼 Images", c.images, "image", "irow") +
-    createRow("📱 APK", c.apks, "apk", "arow") +
-    createRow("📂 Others", c.others, "other", "orow");
-}
-
-/* VIEW VIDEO */
-function openVideo(file){
-  img.style.display="none";
-  video.style.display="block";
-  video.src="/uploads/"+file;
-  viewer.style.display="flex";
-  video.play();
-}
-
-/* VIEW IMAGE */
-function openImage(file){
-  video.pause();
-  video.style.display="none";
-  img.style.display="block";
-  img.src="/uploads/"+file;
-  viewer.style.display="flex";
-}
-
-/* CLOSE */
-document.getElementById("closeBtn").onclick=()=>{
-  viewer.style.display="none";
-  video.pause();
-};
-
-/* DELETE */
-async function deleteFile(name){
-  await fetch("/delete",{
-    method:"POST",
-    headers:{ "Content-Type":"application/x-www-form-urlencoded" },
-    body:"name="+encodeURIComponent(name)
-  });
-  loadFiles();
-}
-
-/* UPLOAD WITH PROGRESS */
+/* ================= UPLOAD ================= */
 function upload(){
   const file = document.getElementById("fileInput").files[0];
   if(!file) return alert("Select file");
@@ -247,20 +151,13 @@ function upload(){
     if(xhr.status === 200){
       const data = JSON.parse(xhr.responseText);
 
-      // 🔥 IMPORTANT PART (YOU WERE MISSING THIS PROPERLY)
       fetch("/save", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          url: data.url,
-          name: data.name
-        })
-      })
-      .then(() => {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(data)
+      }).then(() => {
         text.innerText = "Upload Complete ✅";
-        loadFiles(); // refresh UI
+        loadFiles();
       });
 
     } else {
@@ -268,15 +165,101 @@ function upload(){
     }
   };
 
-  xhr.onerror = function(){
-    text.innerText = "Error ❌";
-  };
-
   xhr.open("POST","/upload");
   xhr.send(fd);
 }
 
+/* ================= LOAD FILES ================= */
+async function loadFiles(){
+  const res = await fetch("/files");
+  const files = await res.json();
+
+  const c = categorize(files);
+
+  content.innerHTML =
+    createRow("🎬 Videos", c.videos, "video", "vrow") +
+    createRow("🖼 Images", c.images, "image", "irow") +
+    createRow("📦 Others", c.others, "other", "orow");
+}
+
+/* ================= CATEGORIZE ================= */
+function categorize(files){
+  const c = {videos:[], images:[], others:[]};
+
+  files.forEach(f => {
+    if(f.url.includes(".mp4")) c.videos.push(f);
+    else if(f.url.match(/\.(jpg|png|jpeg)/)) c.images.push(f);
+    else c.others.push(f);
+  });
+
+  return c;
+}
+
+/* ================= CREATE ROW ================= */
+function createRow(title, items, type, id){
+  if(!items.length) return "";
+
+  return `
+  <div class="row">
+    <h2>${title}</h2>
+
+    <button class="arrow left" onclick="scrollRow('${id}',-1)">◀</button>
+
+    <div class="row-content" id="${id}">
+      ${items.map(file => `
+        <div class="card">
+          ${
+            type==="video"
+            ? `<video src="${file.url}" onclick="openVideo('${file.url}')"></video>`
+            : `<img src="${file.url}" onclick="openImage('${file.url}')">`
+          }
+          <button onclick="deleteFile('${file.url}')">Delete</button>
+        </div>
+      `).join("")}
+    </div>
+
+    <button class="arrow right" onclick="scrollRow('${id}',1)">▶</button>
+  </div>
+  `;
+}
+
+/* ================= SCROLL ================= */
+function scrollRow(id, dir){
+  document.getElementById(id).scrollLeft += dir*300;
+}
+
+/* ================= DELETE ================= */
+function deleteFile(url){
+  fetch("/delete", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({url})
+  }).then(loadFiles);
+}
+
+/* ================= VIEW ================= */
+function openVideo(url){
+  viewer.style.display = "flex";
+  viewVideo.src = url;
+  viewVideo.style.display = "block";
+  viewImage.style.display = "none";
+}
+
+function openImage(url){
+  viewer.style.display = "flex";
+  viewImage.src = url;
+  viewImage.style.display = "block";
+  viewVideo.style.display = "none";
+}
+
+function closeViewer(){
+  viewer.style.display = "none";
+  viewVideo.pause();
+}
+
+/* ================= INIT ================= */
 loadFiles();
+
 </script>
 
 </body>
