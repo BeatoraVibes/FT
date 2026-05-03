@@ -1,58 +1,93 @@
-const express = require('express');
-const multer = require('multer');
-const fs = require('fs');
-const path = require('path');
+const express = require("express");
+const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
 
 const app = express();
-const PORT = process.env.PORT || 3000; // ✅ IMPORTANT CHANGE
 
-app.use(express.static(__dirname));
-app.use(express.urlencoded({ extended: true }));
+/* =========================
+   🔥 IMPORTANT SETTINGS
+========================= */
 
-// ✅ ensure uploads folder exists
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
-}
+// Allow large request body
+app.use(express.json({ limit: "2gb" }));
+app.use(express.urlencoded({ limit: "2gb", extended: true }));
 
-// storage
+// Disable timeout (important for big uploads)
+app.use((req, res, next) => {
+  req.setTimeout(0);
+  next();
+});
+
+/* =========================
+   📁 STORAGE SETUP
+========================= */
+
 const storage = multer.diskStorage({
-    destination: 'uploads/',
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + "-" + file.originalname);
-    }
-});
-const upload = multer({ storage });
-
-// list files
-app.get('/files', (req, res) => {
-    fs.readdir('uploads', (err, files) => {
-        res.json(files || []);
-    });
+  destination: (req, file, cb) => {
+    cb(null, "uploads/");
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + "-" + file.originalname);
+  }
 });
 
-// upload
-app.post('/upload', upload.single('file'), (req, res) => {
-    res.redirect('/');
+// 2GB upload limit
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 2 * 1024 * 1024 * 1024
+  }
 });
 
-// delete
-app.post('/delete', (req, res) => {
-    const filePath = path.join(__dirname, 'uploads', req.body.name);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    res.redirect('/');
+/* =========================
+   📂 STATIC FILES
+========================= */
+
+// Serve uploaded files
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// Serve frontend
+app.use(express.static(__dirname));
+
+/* =========================
+   📤 UPLOAD ROUTE
+========================= */
+
+app.post("/upload", upload.single("file"), (req, res) => {
+  res.send("Upload successful");
 });
 
-// stream
-app.get('/stream/:name', (req, res) => {
-    res.sendFile(path.join(__dirname, 'uploads', req.params.name));
+/* =========================
+   📜 GET FILE LIST
+========================= */
+
+app.get("/files", (req, res) => {
+  fs.readdir("uploads", (err, files) => {
+    if (err) return res.json([]);
+    res.json(files);
+  });
 });
 
-// download
-app.get('/download/:name', (req, res) => {
-    res.download(path.join(__dirname, 'uploads', req.params.name));
+/* =========================
+   ❌ DELETE FILE
+========================= */
+
+app.post("/delete", express.urlencoded({ extended: true }), (req, res) => {
+  const filePath = path.join(__dirname, "uploads", req.body.name);
+
+  fs.unlink(filePath, (err) => {
+    if (err) return res.send("Error deleting file");
+    res.send("Deleted");
+  });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log("Server running on port " + PORT);
+/* =========================
+   🚀 START SERVER
+========================= */
+
+const PORT = process.env.PORT || 10000;
+
+app.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
 });
