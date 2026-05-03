@@ -230,11 +230,16 @@ function scrollRow(id, dir){
 
 /* ================= DELETE ================= */
 function deleteFile(url){
+  if(!confirm("Are you sure you want to delete this file?")){
+    return;
+  }
+
   fetch("/delete", {
     method:"POST",
     headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({url})
-  }).then(loadFiles);
+    body: JSON.stringify({ url })
+  })
+  .then(() => loadFiles());
 }
 
 /* ================= VIEW ================= */
