@@ -65,9 +65,25 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 /* =========================
    📜 GET FILES
 ========================= */
-app.get("/files", (req, res) => {
-  const files = loadData();
-  res.json(files);
+app.get("/files", async (req, res) => {
+  try {
+    const result = await cloudinary.api.resources({
+      resource_type: "video",
+      type: "upload",
+      max_results: 100
+    });
+
+    const files = result.resources.map(f => ({
+      url: f.secure_url,
+      name: f.public_id
+    }));
+
+    res.json(files);
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Error fetching files");
+  }
 });
 
 /* =========================
