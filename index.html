@@ -12,10 +12,7 @@ body {
 }
 
 /* ROW */
-.row-wrapper {
-  position:relative;
-}
-
+.row-wrapper { position:relative; }
 .row {
   display:flex;
   overflow-x:auto;
@@ -49,13 +46,11 @@ video, img {
   font-size:20px;
   padding:10px;
   cursor:pointer;
-  z-index:10;
 }
-
 .left { left:0; }
 .right { right:0; }
 
-/* FULLSCREEN VIEW */
+/* FULLSCREEN */
 #viewer {
   position:fixed;
   top:0;
@@ -70,8 +65,9 @@ video, img {
 }
 
 #viewer video, #viewer img {
-  max-width:90%;
-  max-height:90%;
+  width:100%;
+  height:100%;
+  object-fit:contain;
 }
 
 #closeBtn {
@@ -81,6 +77,19 @@ video, img {
   background:red;
   padding:10px;
   font-size:18px;
+}
+
+/* PROGRESS */
+#progressBox {
+  margin-top:10px;
+  display:none;
+}
+
+#progressBar {
+  background:red;
+  height:100%;
+  width:0%;
+  border-radius:10px;
 }
 </style>
 </head>
@@ -92,9 +101,17 @@ video, img {
 <input type="file" id="fileInput">
 <button onclick="upload()">Upload</button>
 
+<!-- PROGRESS -->
+<div id="progressBox">
+  <div style="background:#333; width:300px; height:20px; border-radius:10px;">
+    <div id="progressBar"></div>
+  </div>
+  <p id="progressText">0%</p>
+</div>
+
 <div id="content"></div>
 
-<!-- FULLSCREEN -->
+<!-- VIEWER -->
 <div id="viewer">
   <video id="player" controls></video>
   <img id="imageView">
@@ -108,27 +125,36 @@ const video = document.getElementById("player");
 const img = document.getElementById("imageView");
 
 function scrollRow(id, dir){
-  const row = document.getElementById(id);
-  row.scrollBy({ left: dir * 200, behavior:"smooth" });
+  document.getElementById(id)
+    .scrollBy({ left: dir*200, behavior:"smooth" });
+}
+
+function categorize(files){
+  return {
+    videos: files.filter(f=>f.match(/\.(mp4|webm|mkv)$/i)),
+    images: files.filter(f=>f.match(/\.(jpg|jpeg|png)$/i)),
+    apks: files.filter(f=>f.endsWith(".apk")),
+    others: files.filter(f=>!f.match(/\.(mp4|webm|mkv|jpg|jpeg|png|apk)$/i))
+  };
 }
 
 function createRow(title, files, type, id){
-  if(files.length===0) return "";
+  if(!files.length) return "";
 
   return `
     <h2>${title}</h2>
     <div class="row-wrapper">
-      <button class="arrow left" onclick="scrollRow('${id}', -1)">◀</button>
+      <button class="arrow left" onclick="scrollRow('${id}',-1)">◀</button>
+
       <div class="row" id="${id}">
         ${files.map(f=>{
           let preview="";
-
           if(type==="video"){
-            preview = `<video src="/uploads/${f}" onclick="openVideo('${f}')"></video>`;
+            preview=`<video src="/uploads/${f}" onclick="openVideo('${f}')"></video>`;
           } else if(type==="image"){
-            preview = `<img src="/uploads/${f}" onclick="openImage('${f}')">`;
+            preview=`<img src="/uploads/${f}" onclick="openImage('${f}')">`;
           } else {
-            preview = `<div style="height:120px;display:flex;align-items:center;justify-content:center;">📄</div>`;
+            preview=`<div style="height:120px;display:flex;align-items:center;justify-content:center;">📄</div>`;
           }
 
           return `
@@ -140,18 +166,10 @@ function createRow(title, files, type, id){
           `;
         }).join("")}
       </div>
-      <button class="arrow right" onclick="scrollRow('${id}', 1)">▶</button>
+
+      <button class="arrow right" onclick="scrollRow('${id}',1)">▶</button>
     </div>
   `;
-}
-
-function categorize(files){
-  return {
-    videos: files.filter(f=>f.match(/\.(mp4|webm|mkv)$/i)),
-    images: files.filter(f=>f.match(/\.(jpg|jpeg|png)$/i)),
-    apks: files.filter(f=>f.endsWith(".apk")),
-    others: files.filter(f=>!f.match(/\.(mp4|webm|mkv|jpg|jpeg|png|apk)$/i))
-  };
 }
 
 async function loadFiles(){
@@ -167,7 +185,7 @@ async function loadFiles(){
     createRow("📂 Others", c.others, "other", "orow");
 }
 
-/* OPEN VIDEO */
+/* VIEW VIDEO */
 function openVideo(file){
   img.style.display="none";
   video.style.display="block";
@@ -176,7 +194,7 @@ function openVideo(file){
   video.play();
 }
 
-/* OPEN IMAGE */
+/* VIEW IMAGE */
 function openImage(file){
   video.pause();
   video.style.display="none";
@@ -191,18 +209,6 @@ document.getElementById("closeBtn").onclick=()=>{
   video.pause();
 };
 
-/* UPLOAD */
-async function upload(){
-  const file=document.getElementById("fileInput").files[0];
-  if(!file) return alert("Select file");
-
-  const fd=new FormData();
-  fd.append("file",file);
-
-  await fetch("/upload",{method:"POST",body:fd});
-  loadFiles();
-}
-
 /* DELETE */
 async function deleteFile(name){
   await fetch("/delete",{
@@ -211,6 +217,43 @@ async function deleteFile(name){
     body:"name="+encodeURIComponent(name)
   });
   loadFiles();
+}
+
+/* UPLOAD WITH PROGRESS */
+function upload(){
+  const file=document.getElementById("fileInput").files[0];
+  if(!file) return alert("Select file");
+
+  const fd=new FormData();
+  fd.append("file",file);
+
+  const xhr=new XMLHttpRequest();
+
+  const box=document.getElementById("progressBox");
+  const bar=document.getElementById("progressBar");
+  const text=document.getElementById("progressText");
+
+  box.style.display="block";
+
+  xhr.upload.onprogress=function(e){
+    if(e.lengthComputable){
+      const percent=Math.round((e.loaded/e.total)*100);
+      bar.style.width=percent+"%";
+      text.innerText=percent+"% uploaded";
+    }
+  };
+
+  xhr.onload=function(){
+    text.innerText="Upload Complete ✅";
+    loadFiles();
+  };
+
+  xhr.onerror=function(){
+    text.innerText="Upload Failed ❌";
+  };
+
+  xhr.open("POST","/upload");
+  xhr.send(fd);
 }
 
 loadFiles();
