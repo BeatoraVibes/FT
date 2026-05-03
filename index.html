@@ -221,35 +221,55 @@ async function deleteFile(name){
 
 /* UPLOAD WITH PROGRESS */
 function upload(){
-  const file=document.getElementById("fileInput").files[0];
+  const file = document.getElementById("fileInput").files[0];
   if(!file) return alert("Select file");
 
-  const fd=new FormData();
-  fd.append("file",file);
+  const fd = new FormData();
+  fd.append("file", file);
 
-  const xhr=new XMLHttpRequest();
+  const xhr = new XMLHttpRequest();
 
-  const box=document.getElementById("progressBox");
-  const bar=document.getElementById("progressBar");
-  const text=document.getElementById("progressText");
+  const box = document.getElementById("progressBox");
+  const bar = document.getElementById("progressBar");
+  const text = document.getElementById("progressText");
 
-  box.style.display="block";
+  box.style.display = "block";
 
-  xhr.upload.onprogress=function(e){
+  xhr.upload.onprogress = function(e){
     if(e.lengthComputable){
-      const percent=Math.round((e.loaded/e.total)*100);
-      bar.style.width=percent+"%";
-      text.innerText=percent+"% uploaded";
+      const percent = Math.round((e.loaded/e.total)*100);
+      bar.style.width = percent+"%";
+      text.innerText = percent+"% uploaded";
     }
   };
 
-  xhr.onload=function(){
-    text.innerText="Upload Complete ✅";
-    loadFiles();
+  xhr.onload = function(){
+    if(xhr.status === 200){
+      const data = JSON.parse(xhr.responseText);
+
+      // 🔥 IMPORTANT PART (YOU WERE MISSING THIS PROPERLY)
+      fetch("/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          url: data.url,
+          name: data.name
+        })
+      })
+      .then(() => {
+        text.innerText = "Upload Complete ✅";
+        loadFiles(); // refresh UI
+      });
+
+    } else {
+      text.innerText = "Upload Failed ❌";
+    }
   };
 
-  xhr.onerror=function(){
-    text.innerText="Upload Failed ❌";
+  xhr.onerror = function(){
+    text.innerText = "Error ❌";
   };
 
   xhr.open("POST","/upload");
