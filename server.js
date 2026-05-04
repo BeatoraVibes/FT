@@ -1,133 +1,103 @@
 const express = require("express");
 const multer = require("multer");
-const fs = require("fs");
-const path = require("path");
+const cors = require("cors");
 const cloudinary = require("cloudinary").v2;
 
 const app = express();
+app.use(cors());
+app.use(express.json());
+app.use(express.static("public"));
 
-/* =========================
-   🔐 CLOUDINARY CONFIG
-========================= */
+/* ========= CLOUDINARY ========= */
 cloudinary.config({
-  cloud_name: "dsrrhjgok",
-  api_key: "985917868938864",
-  api_secret: "vI9k2kSAQ_NL83TSlNrDBBP2YPw"
+  cloud_name: "YOUR_CLOUD_NAME",
+  api_key: "YOUR_API_KEY",
+  api_secret: "YOUR_API_SECRET"
 });
 
-/* =========================
-   📁 SERVE FRONTEND
-========================= */
-app.use(express.static(__dirname));
-app.use(express.json());
+/* ========= MEMORY STORAGE ========= */
+let rooms = [];   // {id, code}
+let files = [];   // {roomId, url, publicId}
 
-/* =========================
-   📁 TEMP UPLOAD
-========================= */
-const upload = multer({ dest: "temp/" });
+/* ========= MULTER ========= */
+const upload = multer({ dest: "uploads/" });
 
-/* =========================
-   💾 LOCAL STORAGE (JSON)
-========================= */
-const DATA_FILE = "data.json";
-
-function loadData() {
-  if (!fs.existsSync(DATA_FILE)) return [];
-  return JSON.parse(fs.readFileSync(DATA_FILE));
+/* ========= GENERATE CODE ========= */
+function generateCode(){
+  return Math.random().toString(36).substring(2,8).toUpperCase();
 }
 
-function saveData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-}
+/* ========= CREATE ROOM ========= */
+app.post("/create-room", (req, res) => {
+  const id = Date.now().toString();
+  const code = generateCode();
 
-/* =========================
-   📤 UPLOAD TO CLOUDINARY
-========================= */
+  rooms.push({ id, code });
+
+  res.json({ roomId: id, code });
+});
+
+/* ========= JOIN ROOM ========= */
+app.post("/join-room", (req, res) => {
+  const { code } = req.body;
+
+  const room = rooms.find(r => r.code === code);
+  if(!room) return res.status(404).send("Invalid code");
+
+  res.json({ roomId: room.id });
+});
+
+/* ========= UPLOAD ========= */
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
+    const roomId = req.body.roomId;
+
     const result = await cloudinary.uploader.upload(req.file.path, {
       resource_type: "auto"
     });
 
-    fs.unlinkSync(req.file.path); // delete temp
-
-    res.json({
+    const file = {
+      roomId,
       url: result.secure_url,
-      name: result.original_filename || req.file.originalname
-    });
+      publicId: result.public_id
+    };
+
+    files.push(file);
+
+    res.json(file);
 
   } catch (err) {
     console.log(err);
-    res.status(500).send("Upload failed");
+    res.status(500).send("Upload error");
   }
 });
 
-/* =========================
-   📜 GET FILES
-========================= */
-app.get("/files", async (req, res) => {
-  try {
-    const result = await cloudinary.api.resources({
-      resource_type: "video",
-      type: "upload",
-      max_results: 100
-    });
+/* ========= GET FILES ========= */
+app.get("/files", (req, res) => {
+  const roomId = req.query.roomId;
+  const roomFiles = files.filter(f => f.roomId === roomId);
 
-    const files = result.resources.map(f => ({
-      url: f.secure_url,
-      name: f.public_id
-    }));
-
-    res.json(files);
-
-  } catch (err) {
-    console.log(err);
-    res.status(500).send("Error fetching files");
-  }
+  res.json(roomFiles);
 });
 
-/* =========================
-   💾 SAVE FILE
-========================= */
-app.post("/save", express.json(), (req, res) => {
-  console.log("SAVE HIT:", req.body); // 👈 debug
+/* ========= DELETE ========= */
+app.post("/delete", async (req, res) => {
+  const { publicId, roomId } = req.body;
 
-  const files = loadData();
-  files.push(req.body);
-  saveData(files);
-
-  res.send("Saved");
-});
-
-/* =========================
-   ❌ DELETE FILE
-========================= */
-app.post("/delete", express.json(), async (req, res) => {
   try {
-    const url = req.body.url;
-
-    // Extract public_id from Cloudinary URL
-    const parts = url.split("/");
-    const fileName = parts[parts.length - 1]; // e.g. abc123.mp4
-    const publicId = fileName.split(".")[0];  // remove extension
-
     await cloudinary.uploader.destroy(publicId, {
-      resource_type: "video"
+      resource_type: "auto"
     });
 
-    res.send("Deleted from cloud");
+    files = files.filter(f => f.publicId !== publicId);
+
+    res.send("Deleted");
 
   } catch (err) {
-    console.log(err);
-    res.status(500).send("Delete failed");
+    res.status(500).send("Delete error");
   }
 });
 
-/* =========================
-   🚀 START SERVER
-========================= */
+/* ========= START ========= */
 const PORT = process.env.PORT || 10000;
-
-app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
-});
+app.listen(PORT, () => console.log("Server running"));
