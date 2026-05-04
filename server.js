@@ -6,24 +6,30 @@ const path = require("path");
 const cloudinary = require("cloudinary").v2;
 
 const app = express();
+
+/* ========= MIDDLEWARE ========= */
 app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
 
+/* ========= FIX ROOT ========= */
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
 /* ========= CLOUDINARY ========= */
 cloudinary.config({
-  cloud_name: "dsrrhjgok",
-  api_key: "153621739232641",
-  api_secret: "JvXtJJZwkKLXsaBO1oekq9LYAN4",
+  cloud_name: "YOUR_CLOUD_NAME",
+  api_key: "YOUR_API_KEY",
+  api_secret: "YOUR_API_SECRET",
   secure: true
 });
 
 /* ========= FILE DB ========= */
 const dbPath = path.join(__dirname, "db.json");
 
-// initialize if not exists
 if (!fs.existsSync(dbPath)) {
-  fs.writeFileSync(dbPath, JSON.stringify({ rooms: [], files: [] }));
+  fs.writeFileSync(dbPath, JSON.stringify({ rooms: [], files: [] }, null, 2));
 }
 
 function readDB() {
@@ -71,6 +77,8 @@ app.post("/upload", upload.single("file"), async (req, res) => {
   try {
     const { roomId } = req.body;
 
+    if (!roomId) return res.status(400).send("Room ID required");
+
     const result = await cloudinary.uploader.upload(req.file.path, {
       resource_type: "auto"
     });
@@ -99,14 +107,18 @@ app.get("/files", (req, res) => {
   const db = readDB();
   const { roomId } = req.query;
 
-  const data = db.files.filter(f => f.roomId === roomId);
-  res.json(data);
+  if (!roomId) return res.json([]);
+
+  const roomFiles = db.files.filter(f => f.roomId === roomId);
+  res.json(roomFiles);
 });
 
 /* ========= DELETE ========= */
 app.post("/delete", async (req, res) => {
   try {
     const { publicId } = req.body;
+
+    if (!publicId) return res.status(400).send("publicId required");
 
     await cloudinary.uploader.destroy(publicId, {
       resource_type: "auto"
@@ -119,10 +131,13 @@ app.post("/delete", async (req, res) => {
     res.send("Deleted");
 
   } catch (err) {
+    console.log(err);
     res.status(500).send("Delete error");
   }
 });
 
 /* ========= START ========= */
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log("Server running"));
+app.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
+});
