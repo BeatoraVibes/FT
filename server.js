@@ -13,8 +13,8 @@ app.use(express.static("public"));
 /* ========= CLOUDINARY ========= */
 cloudinary.config({
   cloud_name: "dsrrhjgok",
-  api_key: "985917868938864",
-  api_secret: "vI9k2kSAQ_NL83TSlNrDBBP2YPw",
+  api_key: "153621739232641",
+  api_secret: "JvXtJJZwkKLXsaBO1oekq9LYAN4",
   secure: true
 });
 
