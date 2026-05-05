@@ -1,8 +1,7 @@
 const express = require("express");
 const multer = require("multer");
 const cors = require("cors");
-const fs = require("fs");
-const path = require("path");
+const mongoose = require("mongoose");
 const cloudinary = require("cloudinary").v2;
 
 const app = express();
@@ -12,9 +11,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
 
-/* ========= FIX ROOT ========= */
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+  res.sendFile(__dirname + "/public/index.html");
 });
 
 /* ========= CLOUDINARY ========= */
@@ -22,54 +20,53 @@ cloudinary.config({
   cloud_name: "dsrrhjgok",
   api_key: "153621739232641",
   api_secret: "JvXtJJZwkKLXsaBO1oekq9LYAN4",
-  secure: true
 });
 
-/* ========= FILE DB ========= */
-const dbPath = path.join(__dirname, "db.json");
+/* ========= MONGODB ========= */
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDB connected"))
+  .catch(err => console.log(err));
 
-if (!fs.existsSync(dbPath)) {
-  fs.writeFileSync(dbPath, JSON.stringify({ rooms: [], files: [] }, null, 2));
-}
+/* ========= SCHEMAS ========= */
+const roomSchema = new mongoose.Schema({
+  code: String
+});
 
-function readDB() {
-  return JSON.parse(fs.readFileSync(dbPath));
-}
+const fileSchema = new mongoose.Schema({
+  roomId: String,
+  url: String,
+  publicId: String
+});
 
-function writeDB(data) {
-  fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
-}
+const Room = mongoose.model("Room", roomSchema);
+const File = mongoose.model("File", fileSchema);
 
 /* ========= MULTER ========= */
 const upload = multer({ dest: "uploads/" });
 
-/* ========= CODE GENERATOR ========= */
+/* ========= GENERATE CODE ========= */
 function generateCode() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
 /* ========= CREATE ROOM ========= */
-app.post("/create-room", (req, res) => {
-  const db = readDB();
-
-  const id = Date.now().toString();
+app.post("/create-room", async (req, res) => {
   const code = generateCode();
 
-  db.rooms.push({ id, code });
-  writeDB(db);
+  const room = await Room.create({ code });
 
-  res.json({ roomId: id, code });
+  res.json({ roomId: room._id, code });
 });
 
 /* ========= JOIN ROOM ========= */
-app.post("/join-room", (req, res) => {
-  const db = readDB();
+app.post("/join-room", async (req, res) => {
   const { code } = req.body;
 
-  const room = db.rooms.find(r => r.code === code);
+  const room = await Room.findOne({ code });
+
   if (!room) return res.status(404).send("Invalid code");
 
-  res.json({ roomId: room.id });
+  res.json({ roomId: room._id });
 });
 
 /* ========= UPLOAD ========= */
@@ -77,22 +74,15 @@ app.post("/upload", upload.single("file"), async (req, res) => {
   try {
     const { roomId } = req.body;
 
-    if (!roomId) return res.status(400).send("Room ID required");
-
     const result = await cloudinary.uploader.upload(req.file.path, {
       resource_type: "auto"
     });
 
-    const db = readDB();
-
-    const file = {
+    const file = await File.create({
       roomId,
       url: result.secure_url,
       publicId: result.public_id
-    };
-
-    db.files.push(file);
-    writeDB(db);
+    });
 
     res.json(file);
 
@@ -103,14 +93,12 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 });
 
 /* ========= GET FILES ========= */
-app.get("/files", (req, res) => {
-  const db = readDB();
+app.get("/files", async (req, res) => {
   const { roomId } = req.query;
 
-  if (!roomId) return res.json([]);
+  const files = await File.find({ roomId });
 
-  const roomFiles = db.files.filter(f => f.roomId === roomId);
-  res.json(roomFiles);
+  res.json(files);
 });
 
 /* ========= DELETE ========= */
@@ -118,26 +106,22 @@ app.post("/delete", async (req, res) => {
   try {
     const { publicId } = req.body;
 
-    if (!publicId) return res.status(400).send("publicId required");
-
     await cloudinary.uploader.destroy(publicId, {
       resource_type: "auto"
     });
 
-    const db = readDB();
-    db.files = db.files.filter(f => f.publicId !== publicId);
-    writeDB(db);
+    await File.deleteOne({ publicId });
 
     res.send("Deleted");
 
   } catch (err) {
-    console.log(err);
     res.status(500).send("Delete error");
   }
 });
 
 /* ========= START ========= */
 const PORT = process.env.PORT || 10000;
+
 app.listen(PORT, () => {
   console.log("Server running on port " + PORT);
 });
