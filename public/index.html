@@ -192,6 +192,12 @@ async function loadFiles() {
     createRow("📁 Others", others, "other");
 }
 
+function getType(url) {
+  if (url.includes("/video/")) return "video";
+  if (url.includes("/image/")) return "image";
+  return "raw";
+}
+  
 /* ========= CREATE ROW ========= */
 function createRow(title, items, type) {
   if (!items.length) return "";
