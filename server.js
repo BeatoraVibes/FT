@@ -105,16 +105,23 @@ app.post("/delete", async (req, res) => {
   try {
     const { publicId } = req.body;
 
+    if (!publicId) {
+      return res.status(400).send("Missing publicId");
+    }
+
+    // Delete from Cloudinary
     await cloudinary.uploader.destroy(publicId, {
       resource_type: "auto"
     });
 
+    // Delete from MongoDB
     await File.deleteOne({ publicId });
 
-    res.send("Deleted");
+    res.json({ success: true });
 
   } catch (err) {
-    res.status(500).send("Delete error");
+    console.log("DELETE ERROR:", err);
+    res.status(500).send("Delete failed");
   }
 });
 
