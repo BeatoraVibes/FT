@@ -2,26 +2,16 @@
 <html>
 <head>
   <title>Media Hub</title>
-
   <style>
     body {
       background: black;
       color: white;
       font-family: Arial;
-      margin: 0;
+      padding: 20px;
     }
 
     h1 {
-      margin: 20px;
-    }
-
-    .top-bar {
-      margin: 20px;
-    }
-
-    input {
-      padding: 6px;
-      margin-right: 5px;
+      margin-bottom: 20px;
     }
 
     button {
@@ -29,19 +19,21 @@
       color: white;
       border: none;
       padding: 8px 12px;
-      border-radius: 5px;
+      margin: 5px;
       cursor: pointer;
+      border-radius: 5px;
+    }
+
+    input {
+      padding: 8px;
+      margin: 5px;
     }
 
     .row {
-      margin: 20px;
-      position: relative;
-    }
-
-    .row-content {
       display: flex;
       overflow-x: auto;
       gap: 10px;
+      margin-top: 10px;
     }
 
     .card {
@@ -49,59 +41,17 @@
       background: #111;
       padding: 10px;
       border-radius: 10px;
-
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
     }
 
     video, img {
       width: 100%;
       border-radius: 8px;
-      margin-bottom: 10px;
     }
 
-    .arrow {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 20px;
-      background: rgba(0,0,0,0.7);
-    }
-
-    .left { left: 0; }
-    .right { right: 0; }
-
-    #viewer {
-      display: none;
-      position: fixed;
-      top:0;
-      left:0;
-      width:100%;
-      height:100%;
-      background:black;
-      justify-content:center;
-      align-items:center;
-      flex-direction:column;
-    }
-
-    #viewer video, #viewer img {
-      max-width:90%;
-      max-height:80%;
-    }
-
-    #closeBtn {
-      position:absolute;
-      top:10px;
-      right:10px;
-      font-size:25px;
-      background:red;
-    }
-
-    .grid {
-      display:grid;
-      grid-template-columns: repeat(3,1fr);
-      gap:10px;
+    .delete-btn {
+      background: red;
+      margin-top: 5px;
+      width: 100%;
     }
   </style>
 </head>
@@ -110,243 +60,152 @@
 
 <h1>📺 Media Hub</h1>
 
-<div class="top-bar">
-  <button onclick="createRoom()">Create Room</button>
+<!-- ROOM CONTROLS -->
+<button onclick="createRoom()">Create Room</button>
+<input id="codeInput" placeholder="Enter code">
+<button onclick="joinRoom()">Join Room</button>
 
-  <input id="joinCode" placeholder="Enter code">
-  <button onclick="joinRoom()">Join Room</button>
+<br><br>
 
-  <h3 id="roomInfo"></h3>
+<!-- UPLOAD -->
+<input type="file" id="fileInput">
+<button id="uploadBtn" onclick="uploadFile()" disabled>Upload</button>
 
-  <br><br>
+<p id="status"></p>
 
-  <input type="file" id="fileInput">
-  <button onclick="upload()">Upload</button>
-</div>
-
-<!-- PROGRESS -->
-<div id="progressBox" style="display:none; margin:20px;">
-  <div style="background:#333; height:20px; width:300px;">
-    <div id="progressBar" style="background:red; height:20px; width:0;"></div>
-  </div>
-  <div id="progressText"></div>
-</div>
-
-<div id="content"></div>
-<div id="seeAllPage" style="display:none;"></div>
-
-<div id="viewer">
-  <button id="closeBtn" onclick="closeViewer()">❌</button>
-  <video id="viewVideo" controls></video>
-  <img id="viewImage">
-</div>
+<!-- CONTENT -->
+<div id="content" style="display:none;"></div>
 
 <script>
 
-/* ================= ROOM SYSTEM ================= */
-let roomId = localStorage.getItem("roomId");
+let currentRoomId = null;
 
-function createRoom(){
-  fetch("/create-room",{method:"POST"})
-  .then(res=>res.json())
-  .then(data=>{
-    roomId = data.roomId;
-    localStorage.setItem("roomId",roomId);
+/* ========= CREATE ROOM ========= */
+async function createRoom() {
+  const res = await fetch("/create-room", { method: "POST" });
+  const data = await res.json();
 
-    roomInfo.innerText = "Room Code: " + data.code;
-    loadFiles();
+  alert("Room Code: " + data.code);
+
+  currentRoomId = data.roomId;
+
+  enableApp();
+  loadFiles();
+}
+
+/* ========= JOIN ROOM ========= */
+async function joinRoom() {
+  const code = document.getElementById("codeInput").value;
+
+  const res = await fetch("/join-room", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code })
   });
+
+  if (!res.ok) {
+    alert("Invalid code");
+    return;
+  }
+
+  const data = await res.json();
+
+  currentRoomId = data.roomId;
+
+  enableApp();
+  loadFiles();
 }
 
-function joinRoom(){
-  const code = joinCode.value;
+/* ========= ENABLE APP ========= */
+function enableApp() {
+  document.getElementById("uploadBtn").disabled = false;
+  document.getElementById("content").style.display = "block";
+}
 
-  fetch("/join-room",{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({code})
-  })
-  .then(res=>res.json())
-  .then(data=>{
-    roomId = data.roomId;
-    localStorage.setItem("roomId",roomId);
+/* ========= UPLOAD ========= */
+async function uploadFile() {
+  if (!currentRoomId) {
+    alert("Join or create a room first");
+    return;
+  }
 
-    roomInfo.innerText = "Joined Room";
-    loadFiles();
+  const file = document.getElementById("fileInput").files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("roomId", currentRoomId);
+
+  document.getElementById("status").innerText = "Uploading...";
+
+  await fetch("/upload", {
+    method: "POST",
+    body: formData
   });
+
+  document.getElementById("status").innerText = "Uploaded ✔";
+
+  loadFiles();
 }
 
-/* ================= UPLOAD ================= */
-function upload(){
-  if(!roomId) return alert("Create or join room first");
+/* ========= LOAD FILES ========= */
+async function loadFiles() {
+  if (!currentRoomId) return;
 
-  const file = fileInput.files[0];
-  if(!file) return alert("Select file");
-
-  const fd = new FormData();
-  fd.append("file",file);
-  fd.append("roomId",roomId);
-
-  const xhr = new XMLHttpRequest();
-
-  progressBox.style.display="block";
-
-  xhr.upload.onprogress = e=>{
-    if(e.lengthComputable){
-      const p = Math.round((e.loaded/e.total)*100);
-      progressBar.style.width = p+"%";
-      progressText.innerText = p+"% uploaded";
-    }
-  };
-
-  xhr.onload = ()=>{
-    progressText.innerText="Upload Complete ✅";
-    loadFiles();
-  };
-
-  xhr.open("POST","/upload");
-  xhr.send(fd);
-}
-
-/* ================= LOAD ================= */
-async function loadFiles(){
-  if(!roomId) return;
-
-  const res = await fetch(`/files?roomId=${roomId}`);
+  const res = await fetch(`/files?roomId=${currentRoomId}`);
   const files = await res.json();
 
-  const c = categorize(files);
+  const videos = [];
+  const images = [];
+  const others = [];
 
-  content.innerHTML =
-    createRow("🎬 Videos",c.videos,"video","vrow") +
-    createRow("🖼 Images",c.images,"image","irow") +
-    createRow("📦 Others",c.others,"other","orow");
-}
-
-/* ================= CATEGORY ================= */
-function categorize(files){
-  const c={videos:[],images:[],others:[]};
-
-  files.forEach(f=>{
-    if(f.url.includes(".mp4")) c.videos.push(f);
-    else if(f.url.match(/\.(jpg|png|jpeg)/)) c.images.push(f);
-    else c.others.push(f);
+  files.forEach(f => {
+    if (f.url.includes("video")) videos.push(f);
+    else if (f.url.match(/\.(jpg|png|jpeg|webp)/)) images.push(f);
+    else others.push(f);
   });
 
-  return c;
+  document.getElementById("content").innerHTML =
+    createRow("🎬 Videos", videos, "video") +
+    createRow("🖼 Images", images, "image") +
+    createRow("📁 Others", others, "other");
 }
 
-/* ================= ROW ================= */
-function createRow(title,items,type,id){
-  if(!items.length) return "";
+/* ========= CREATE ROW ========= */
+function createRow(title, items, type) {
+  if (!items.length) return "";
 
   return `
-  <div class="row">
-    <div style="display:flex;justify-content:space-between;">
-      <h2>${title}</h2>
-      <button onclick="openSeeAll('${type}')">See All</button>
-    </div>
-
-    <button class="arrow left" onclick="scrollRow('${id}',-1)">◀</button>
-
-    <div class="row-content" id="${id}">
-      ${items.map(f=>`
+    <h2>${title}</h2>
+    <div class="row">
+      ${items.map(f => `
         <div class="card">
           ${
-            type==="video"
-            ? `<video src="${f.url}" onclick="openVideo('${f.url}')"></video>`
-            : `<img src="${f.url}" onclick="openImage('${f.url}')">`
+            type === "video"
+              ? `<video src="${f.url}" controls></video>`
+              : type === "image"
+              ? `<img src="${f.url}">`
+              : `<a href="${f.url}" target="_blank">Open File</a>`
           }
-          <button onclick="deleteFile('${f.publicId}')">Delete</button>
+          <button class="delete-btn" onclick="deleteFile('${f.publicId}')">Delete</button>
         </div>
       `).join("")}
     </div>
-
-    <button class="arrow right" onclick="scrollRow('${id}',1)">▶</button>
-  </div>
   `;
 }
 
-function scrollRow(id,dir){
-  document.getElementById(id).scrollLeft += dir*300;
-}
+/* ========= DELETE ========= */
+async function deleteFile(publicId) {
+  if (!confirm("Delete this file?")) return;
 
-/* ================= DELETE ================= */
-function deleteFile(publicId){
-  if(!confirm("Delete this file?")) return;
-
-  fetch("/delete",{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
+  await fetch("/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ publicId })
-  }).then(loadFiles);
-}
-
-/* ================= VIEW ================= */
-function openVideo(url){
-  viewer.style.display="flex";
-  viewVideo.src=url;
-  viewVideo.style.display="block";
-  viewImage.style.display="none";
-}
-
-function openImage(url){
-  viewer.style.display="flex";
-  viewImage.src=url;
-  viewImage.style.display="block";
-  viewVideo.style.display="none";
-}
-
-function closeViewer(){
-  viewer.style.display="none";
-  viewVideo.pause();
-}
-
-/* ================= SEE ALL ================= */
-function openSeeAll(type){
-  fetch(`/files?roomId=${roomId}`)
-  .then(res=>res.json())
-  .then(files=>{
-    const filtered = files.filter(f=>{
-      if(type==="video") return f.url.includes(".mp4");
-      if(type==="image") return f.url.match(/\.(jpg|png|jpeg)/);
-      return true;
-    });
-
-    let html = `
-      <button onclick="closeSeeAll()">⬅ Back</button>
-      <h2>${type}</h2>
-      <div class="grid">
-    `;
-
-    filtered.forEach(f=>{
-      html += `
-        <div class="card">
-          ${
-            type==="video"
-            ? `<video src="${f.url}" controls></video>`
-            : `<img src="${f.url}">`
-          }
-          <button onclick="deleteFile('${f.publicId}')">Delete</button>
-        </div>
-      `;
-    });
-
-    html += "</div>";
-
-    content.style.display="none";
-    seeAllPage.innerHTML=html;
-    seeAllPage.style.display="block";
   });
-}
 
-function closeSeeAll(){
-  seeAllPage.style.display="none";
-  content.style.display="block";
+  loadFiles();
 }
-
-/* INIT */
-loadFiles();
 
 </script>
 
