@@ -219,15 +219,21 @@ function createRow(title, items, type) {
 async function deleteFile(publicId) {
   if (!confirm("Delete this file?")) return;
 
-  await fetch("/delete", {
+  const res = await fetch("/delete", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json"
+    },
     body: JSON.stringify({ publicId })
   });
 
+  if (!res.ok) {
+    alert("Delete failed");
+    return;
+  }
+
   loadFiles();
 }
-
 </script>
 
 </body>
