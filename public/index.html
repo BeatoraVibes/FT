@@ -208,7 +208,7 @@ function createRow(title, items, type) {
               ? `<img src="${f.url}">`
               : `<a href="${f.url}" target="_blank">Open</a>`
           }
-          <button class="delete-btn" onclick="deleteFile('${f.publicId}')">Delete</button>
+          <button onclick="deleteFile('${f.publicId}', '${getType(f.url)}')">Delete</button>
         </div>
       `).join("")}
     </div>
@@ -216,7 +216,7 @@ function createRow(title, items, type) {
 }
 
 /* ========= DELETE ========= */
-async function deleteFile(publicId) {
+async function deleteFile(publicId, type) {
   if (!confirm("Delete this file?")) return;
 
   const res = await fetch("/delete", {
@@ -224,7 +224,10 @@ async function deleteFile(publicId) {
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ publicId })
+    body: JSON.stringify({
+      publicId,
+      resourceType: type
+    })
   });
 
   if (!res.ok) {
@@ -234,6 +237,7 @@ async function deleteFile(publicId) {
 
   loadFiles();
 }
+
 </script>
 
 </body>
